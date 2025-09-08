@@ -1,0 +1,553 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 全智能一键字幕生成</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        dark: '#1E293B',
+                        light: '#FFFFFF'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .transition-height {
+                transition: height 0.3s ease;
+            }
+            .animate-gradient {
+                background-size: 200% 200%;
+                animation: gradientShift 5s ease infinite;
+            }
+            @keyframes gradientShift {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
+            }
+            .subtitle-item {
+                @apply bg-white border border-gray-200 rounded-lg p-4 mb-3 transition-all duration-200 hover:shadow-md;
+            }
+            .time-input {
+                @apply w-36 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary;
+            }
+            .progress-container {
+                @apply fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-500;
+            }
+            .progress-bar {
+                @apply w-3/4 max-w-2xl h-6 bg-gray-200 rounded-full overflow-hidden mt-8;
+            }
+            .progress-fill {
+                @apply h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-300 ease-out w-[1%];
+            }
+            .progress-text {
+                @apply text-[clamp(2rem,5vw,4rem)] font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary mt-6;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen font-sans text-dark">
+    <!-- 全屏进度动画容器 -->
+    <div id="progressContainer" class="progress-container opacity-0 pointer-events-none">
+        <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-dark">AI正在生成字幕</h2>
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div id="progressPercentage" class="progress-text">1%</div>
+    </div>
+
+    <!-- 页面容器 -->
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- 标题区域 -->
+        <header class="text-center mb-12">
+            <h1 class="text-[clamp(4.4rem,12vw,7rem)] font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-purple-500 to-secondary animate-gradient mb-6">
+                AI 全智能一键字幕生成
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto text-2xl">
+                Anker AI 视频团队研发，输入原生脚本内容,AI 一键生成符合专业格式的字幕文件工程，支持单独调整每条字幕
+            </p>
+        </header>
+        
+        <!-- 主要内容区域 -->
+        <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <!-- 左侧输入框 -->
+            <div class="lg:col-span-2 bg-gray-50 rounded-xl shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl">
+                <div class="bg-primary px-6 py-5">
+                    <h2 class="text-white font-semibold text-2xl flex items-center">
+                        <i class="fa fa-file-text-o mr-2"></i>导入原生脚本
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-lg mb-4">请输入原生脚本内容，每行一条</p>
+                    <div class="relative">
+                        <textarea id="inputSubtitles" class="w-full h-96 p-5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-lg" placeholder="脚本内容1
+脚本内容2
+脚本内容3
+..."></textarea>
+                        <button id="clearInput" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors text-xl">
+                            <i class="fa fa-times-circle"></i>
+                        </button>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="pasteInput" class="text-lg text-primary hover:text-primary/80 flex items-center mr-4 transition-colors">
+                            <i class="fa fa-clipboard mr-1"></i> 粘贴
+                        </button>
+                        <button id="sampleInput" class="text-lg text-primary hover:text-primary/80 flex items-center transition-colors">
+                            <i class="fa fa-lightbulb-o mr-1"></i> 示例
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 中间按钮区域 -->
+            <div class="flex flex-col items-center justify-center lg:col-span-1 gap-4">
+                <button id="generateBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-4 px-10 rounded-full shadow-lg transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-secondary/30 flex items-center text-xl w-full sm:w-auto">
+                    <i class="fa fa-magic mr-2"></i> AI生成字幕
+                </button>
+                <button id="regenerateBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-3 px-8 rounded-full shadow-lg transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-primary/30 flex items-center text-lg w-full sm:w-auto opacity-50 cursor-not-allowed" disabled="">
+                    <i class="fa fa-refresh mr-2"></i> 重新编号
+                </button>
+                <button id="exportBtn" class="bg-dark hover:bg-dark/90 text-white font-medium py-3 px-8 rounded-full shadow-lg transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-dark/30 flex items-center text-lg w-full sm:w-auto opacity-50 cursor-not-allowed" disabled="">
+                    <i class="fa fa-file-text mr-2"></i> 导出工程文件
+                </button>
+            </div>
+            
+            <!-- 右侧输出框 -->
+            <div class="lg:col-span-2 bg-gray-50 rounded-xl shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl">
+                <div class="bg-dark px-6 py-5">
+                    <h2 class="text-white font-semibold text-2xl flex items-center">
+                        <i class="fa fa-closed-captioning-o mr-2"></i>生成结果
+                    </h2>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-lg mb-4">可调整的字幕列表</p>
+                    <div id="subtitlesContainer" class="w-full h-80 border border-gray-200 rounded-lg bg-white overflow-auto p-4 space-y-2">
+                        <div class="flex items-center justify-center h-full text-gray-400">
+                            生成的字幕将显示在这里，可以单独调整每条字幕
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="copyOutput" class="text-lg text-primary hover:text-primary/80 flex items-center transition-colors opacity-50 cursor-not-allowed" disabled="">
+                            <i class="fa fa-copy mr-1"></i> 复制全部
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 使用说明 -->
+        <section class="mt-16 bg-gray-50 rounded-xl shadow-md p-8">
+            <h3 class="text-xl font-semibold mb-6 text-gray-800">使用说明</h3>
+            <ul class="list-disc pl-6 text-gray-600 space-y-3 text-lg">
+                <li>在左侧文本框中输入原生脚本内容，每行一条</li>
+                <li>点击"AI生成字幕"按钮，系统会自动为每条字幕添加序号和时间轴</li>
+                <li>可单独修改每条字幕的开始时间、结束时间和内容</li>
+                <li>可删除不需要的字幕，或点击"重新编号"更新序号</li>
+                <li>完成编辑后，点击"导出工程文件"获取标准字幕文件</li>
+            </ul>
+        </section>
+        
+        <!-- 页脚 -->
+        <footer class="mt-16 text-center text-gray-500 text-lg">
+            <p>Anker AI 视频团队研发 © 2023</p>
+        </footer>
+    </div>
+    
+    <!-- 通知提示 -->
+    <div id="notification" class="fixed bottom-8 right-8 bg-dark text-white px-6 py-4 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center text-lg">
+        <i id="notificationIcon" class="fa mr-3"></i>
+        <span id="notificationText"></span>
+    </div>
+
+    <script>
+        // DOM元素
+        const inputSubtitles = document.getElementById('inputSubtitles');
+        const subtitlesContainer = document.getElementById('subtitlesContainer');
+        const generateBtn = document.getElementById('generateBtn');
+        const regenerateBtn = document.getElementById('regenerateBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const clearInputBtn = document.getElementById('clearInput');
+        const copyOutputBtn = document.getElementById('copyOutput');
+        const pasteInputBtn = document.getElementById('pasteInput');
+        const sampleInputBtn = document.getElementById('sampleInput');
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notificationIcon');
+        const notificationText = document.getElementById('notificationText');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercentage = document.getElementById('progressPercentage');
+        
+        // 存储字幕数据
+        let subtitlesData = [];
+        let progressInterval;
+        
+        // 显示通知
+        function showNotification(message, isSuccess = true) {
+            notificationText.textContent = message;
+            notificationIcon.className = isSuccess ? 'fa fa-check-circle mr-3' : 'fa fa-exclamation-circle mr-3';
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            notification.classList.add('translate-y-0', 'opacity-100');
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0', 'opacity-100');
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+        
+        // 格式化时间（毫秒转SRT格式）
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+            const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+            const milliseconds = (ms % 1000).toString().padStart(3, '0');
+            
+            return `${hours}:${minutes}:${seconds},${milliseconds}`;
+        }
+        
+        // 解析时间（SRT格式转毫秒）
+        function parseTime(timeStr) {
+            const [timePart, msPart] = timeStr.split(',');
+            const [hours, minutes, seconds] = timePart.split(':').map(Number);
+            return hours * 3600000 + minutes * 60000 + seconds * 1000 + parseInt(msPart || 0);
+        }
+        
+        // 渲染字幕列表
+        function renderSubtitles() {
+            if (subtitlesData.length === 0) {
+                subtitlesContainer.innerHTML = `
+                    <div class="flex items-center justify-center h-full text-gray-400">
+                        生成的字幕将显示在这里，可以单独调整每条字幕
+                    </div>
+                `;
+                disableSubtitleActions();
+                return;
+            }
+            
+            subtitlesContainer.innerHTML = '';
+            
+            subtitlesData.forEach((subtitle, index) => {
+                const subtitleElement = document.createElement('div');
+                subtitleElement.className = 'subtitle-item';
+                subtitleElement.dataset.index = index;
+                
+                subtitleElement.innerHTML = `
+                    <div class="flex items-center mb-2">
+                        <span class="bg-primary text-white px-3 py-1 rounded-full text-sm font-medium mr-3">${index + 1}</span>
+                        <button class="delete-btn text-red-500 hover:text-red-700 transition-colors ml-auto" data-index="${index}">
+                            <i class="fa fa-trash"></i> 删除
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">开始时间</label>
+                            <input type="text" class="start-time time-input" value="${subtitle.startTime}" data-index="${index}">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">结束时间</label>
+                            <input type="text" class="end-time time-input" value="${subtitle.endTime}" data-index="${index}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">字幕内容</label>
+                        <textarea class="content-input w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary" rows="2" data-index="${index}">${subtitle.content}</textarea>
+                    </div>
+                `;
+                
+                subtitlesContainer.appendChild(subtitleElement);
+            });
+            
+            // 添加事件监听器
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', handleDeleteSubtitle);
+            });
+            
+            document.querySelectorAll('.start-time, .end-time').forEach(input => {
+                input.addEventListener('change', handleTimeChange);
+            });
+            
+            document.querySelectorAll('.content-input').forEach(textarea => {
+                textarea.addEventListener('change', handleContentChange);
+            });
+            
+            enableSubtitleActions();
+        }
+        
+        // 显示进度动画 - 调整为10秒内完成，每0.1秒增加1%
+        function showProgressAnimation() {
+            // 重置进度条
+            progressFill.style.width = '1%';
+            progressPercentage.textContent = '1%';
+            
+            // 显示进度容器
+            progressContainer.classList.remove('opacity-0', 'pointer-events-none');
+            
+            // 配置参数：10秒内从1%到100%，每0.1秒增加1%
+            const intervalMs = 100; // 0.1秒
+            const totalSteps = 99; // 从1%到100%需要99步增加
+            let currentStep = 0;
+            
+            // 清除任何现有定时器
+            if (progressInterval) clearInterval(progressInterval);
+            
+            // 设置定时器更新进度
+            progressInterval = setInterval(() => {
+                currentStep++;
+                const currentProgress = 1 + currentStep; // 从1%开始，每步增加1%
+                
+                // 确保不超过100%
+                if (currentStep >= totalSteps) {
+                    clearInterval(progressInterval);
+                    
+                    // 进度完成后隐藏动画并显示结果
+                    setTimeout(() => {
+                        progressContainer.classList.add('opacity-0', 'pointer-events-none');
+                        renderSubtitles();
+                        showNotification('字幕生成成功！可单独调整每条字幕');
+                    }, 500);
+                }
+                
+                // 更新进度条和文本
+                progressFill.style.width = `${currentProgress}%`;
+                progressPercentage.textContent = `${currentProgress}%`;
+            }, intervalMs); // 每0.1秒更新一次
+        }
+        
+        // 生成字幕
+        function generateSubtitles() {
+            const input = inputSubtitles.value.trim();
+            if (!input) {
+                showNotification('请先输入原生脚本内容', false);
+                return;
+            }
+            
+            // 分割输入的每一行
+            const lines = input.split('\n').filter(line => line.trim() !== '');
+            subtitlesData = [];
+            let currentTime = 0;
+            const durationPerLine = 5000; // 每条字幕持续5秒
+            
+            // 生成字幕数据
+            lines.forEach((line, index) => {
+                const startTime = currentTime;
+                const endTime = currentTime + durationPerLine;
+                
+                subtitlesData.push({
+                    id: index + 1,
+                    startTime: formatTime(startTime),
+                    endTime: formatTime(endTime),
+                    content: line.trim()
+                });
+                
+                currentTime = endTime;
+            });
+            
+            // 显示进度动画
+            showProgressAnimation();
+        }
+        
+        // 处理删除字幕
+        function handleDeleteSubtitle(e) {
+            const index = parseInt(e.currentTarget.dataset.index);
+            subtitlesData.splice(index, 1);
+            renderSubtitles();
+            showNotification('字幕已删除');
+        }
+        
+        // 处理时间修改
+        function handleTimeChange(e) {
+            const index = parseInt(e.currentTarget.dataset.index);
+            const isStartTime = e.currentTarget.classList.contains('start-time');
+            const newValue = e.currentTarget.value;
+            
+            // 简单验证时间格式
+            const timePattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
+            if (!timePattern.test(newValue)) {
+                showNotification('时间格式不正确，请使用HH:MM:SS,mmm格式', false);
+                // 恢复原始值
+                e.currentTarget.value = isStartTime ? 
+                    subtitlesData[index].startTime : 
+                    subtitlesData[index].endTime;
+                return;
+            }
+            
+            // 更新数据
+            if (isStartTime) {
+                // 确保开始时间小于结束时间
+                const startMs = parseTime(newValue);
+                const endMs = parseTime(subtitlesData[index].endTime);
+                
+                if (startMs >= endMs) {
+                    showNotification('开始时间不能晚于结束时间', false);
+                    e.currentTarget.value = subtitlesData[index].startTime;
+                    return;
+                }
+                
+                subtitlesData[index].startTime = newValue;
+            } else {
+                // 确保结束时间大于开始时间
+                const endMs = parseTime(newValue);
+                const startMs = parseTime(subtitlesData[index].startTime);
+                
+                if (endMs <= startMs) {
+                    showNotification('结束时间不能早于开始时间', false);
+                    e.currentTarget.value = subtitlesData[index].endTime;
+                    return;
+                }
+                
+                subtitlesData[index].endTime = newValue;
+            }
+            
+            showNotification('时间已更新');
+        }
+        
+        // 处理内容修改
+        function handleContentChange(e) {
+            const index = parseInt(e.currentTarget.dataset.index);
+            subtitlesData[index].content = e.currentTarget.value;
+            showNotification('字幕内容已更新');
+        }
+        
+        // 重新编号
+        function regenerateNumbers() {
+            subtitlesData.forEach((subtitle, index) => {
+                subtitle.id = index + 1;
+            });
+            renderSubtitles();
+            showNotification('字幕已重新编号');
+        }
+        
+        // 导出为SRT格式
+        function exportToSRT() {
+            let srtContent = '';
+            
+            subtitlesData.forEach((subtitle, index) => {
+                srtContent += `${index + 1}\n`;
+                srtContent += `${subtitle.startTime} --> ${subtitle.endTime}\n`;
+                srtContent += `${subtitle.content}\n\n`;
+            });
+            
+            // 创建并下载文件
+            const blob = new Blob([srtContent], { type: 'text/srt' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Anker AI 全自动字幕生成字幕文件.srt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('字幕工程文件已导出');
+        }
+        
+        // 复制全部字幕
+        function copyAllSubtitles() {
+            let srtContent = '';
+            
+            subtitlesData.forEach((subtitle, index) => {
+                srtContent += `${index + 1}\n`;
+                srtContent += `${subtitle.startTime} --> ${subtitle.endTime}\n`;
+                srtContent += `${subtitle.content}\n\n`;
+            });
+            
+            navigator.clipboard.writeText(srtContent).then(() => {
+                showNotification('所有字幕已复制到剪贴板');
+            }).catch(err => {
+                showNotification('复制失败，请手动复制', false);
+                console.error('复制失败:', err);
+            });
+        }
+        
+        // 清空输入
+        function clearInput() {
+            inputSubtitles.value = '';
+            inputSubtitles.focus();
+            showNotification('已清空输入内容');
+        }
+        
+        // 粘贴到输入
+        function pasteInput() {
+            navigator.clipboard.readText().then(text => {
+                inputSubtitles.value = text;
+                showNotification('已从剪贴板粘贴');
+            }).catch(err => {
+                showNotification('粘贴失败，请手动粘贴', false);
+                console.error('粘贴失败:', err);
+            });
+        }
+        
+        // 填充示例内容
+        function fillSampleInput() {
+            const sample = `欢迎使用Anker AI字幕生成工具
+这是由Anker AI视频团队研发的专业工具
+只需输入原生脚本内容
+AI将一键生成符合专业格式的字幕
+支持单独调整每条字幕的时间和内容`;
+            
+            inputSubtitles.value = sample;
+            showNotification('已填充示例内容');
+        }
+        
+        // 启用字幕操作按钮
+        function enableSubtitleActions() {
+            regenerateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            regenerateBtn.disabled = false;
+            
+            exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            exportBtn.disabled = false;
+            
+            copyOutputBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            copyOutputBtn.disabled = false;
+        }
+        
+        // 禁用字幕操作按钮
+        function disableSubtitleActions() {
+            regenerateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            regenerateBtn.disabled = true;
+            
+            exportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            exportBtn.disabled = true;
+            
+            copyOutputBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            copyOutputBtn.disabled = true;
+        }
+        
+        // 事件监听
+        generateBtn.addEventListener('click', generateSubtitles);
+        regenerateBtn.addEventListener('click', regenerateNumbers);
+        exportBtn.addEventListener('click', exportToSRT);
+        clearInputBtn.addEventListener('click', clearInput);
+        copyOutputBtn.addEventListener('click', copyAllSubtitles);
+        pasteInputBtn.addEventListener('click', pasteInput);
+        sampleInputBtn.addEventListener('click', fillSampleInput);
+        
+        // 支持回车键生成字幕（当输入框聚焦时按Ctrl+Enter）
+        inputSubtitles.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                generateSubtitles();
+            }
+        });
+    </script>
+
+
+    </body></html>
